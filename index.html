@@ -133,6 +133,48 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 .cfgsub{border:1px solid var(--rule-soft);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
 .cfgfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* 年度の選択 */
+.lpick{display:flex;gap:8px}
+.lpick select{flex:1}
+.lpick select#kindPick{flex:0 0 6.5em}
+/* 一覧：消化表と記録の切り替え */
+.minis{display:inline-grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--tint);border-radius:999px;padding:3px;align-self:flex-start}
+.mini{font:inherit;font-size:.82rem;font-weight:700;border:0;background:transparent;color:var(--muted);padding:5px 16px;border-radius:999px;cursor:pointer}
+.mini[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.filters.one{grid-template-columns:1fr}
+.filters select[hidden],#gridBody[hidden],#listBody[hidden]{display:none}
+.gtable{border-collapse:separate;border-spacing:3px;width:100%;font-variant-numeric:tabular-nums}
+.gtable thead th{font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;padding-bottom:2px}
+.gtable tbody th,.gtable tfoot th{font-size:.78rem;font-weight:700;text-align:left;white-space:nowrap;padding-right:4px;position:sticky;left:0;background:var(--paper);z-index:1}
+.gtable td{padding:0;text-align:center}
+.gtable td,.gtable th{vertical-align:middle}
+.gc{display:block}
+.gc{font:inherit;font-size:.82rem;font-weight:700;width:100%;min-width:36px;height:30px;padding:0 2px;border:0;border-radius:6px;background:var(--accent-soft);color:var(--accent);cursor:pointer;position:relative;font-variant-numeric:tabular-nums}
+.gc[data-kind="ok"]{background:var(--ok-soft);color:var(--ok)}
+.gc[data-kind="warn"]{background:var(--warn-soft);color:var(--warn)}
+.gc.none{background:transparent;border:1px dashed var(--rule)}
+.gc sup{position:absolute;top:1px;right:3px;font-size:.6rem;line-height:1}
+.gtable .gsum{font-size:.78rem;font-weight:700;text-align:right;white-space:nowrap;padding-left:6px}
+.gtable .gsum.gpart{color:var(--muted);font-weight:400}
+.gtable tfoot td,.gtable tfoot th{font-size:.72rem;color:var(--muted);font-weight:700;padding-top:4px}
+/* 受け箱へ送る */
+.tool.sm{font-size:.72rem;padding:1px 9px}
+.ptable td:last-child{padding-left:10px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+dialog.sheet{width:min(640px,calc(100% - 24px));max-height:calc(100dvh - 24px);border:0;border-radius:14px;padding:16px;background:var(--paper);color:var(--ink);overflow:auto}
+dialog.sheet::backdrop{background:rgb(0 0 0 / .35)}
+#sendForm{display:flex;flex-direction:column;gap:14px}
+.sheethead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sheethead h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:1.35rem}
+.req{font-style:normal;font-size:.7rem;color:var(--bad);background:var(--bad-soft);border-radius:999px;padding:0 8px}
+.pick{display:block;text-align:center;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px dashed var(--accent);border-radius:10px;padding:12px;cursor:pointer}
+.pick.sub{color:var(--muted);background:var(--tint);border-color:var(--rule)}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}
+.thumbs:empty{display:none}
+.th{position:relative}
+.th img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--rule-soft);display:block}
+.rm{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:14px;line-height:24px;padding:0;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -159,7 +201,9 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
       <div class="field"><span class="flabel">試験</span><div class="chips" id="examChips" role="radiogroup" aria-label="試験"></div></div>
       <div class="field"><span class="flabel">科目</span><div class="chips" id="subjChips" role="radiogroup" aria-label="科目"></div></div>
       <div class="row2">
-        <div class="field"><label class="flabel" for="yearLabel">年度・回</label><input id="yearLabel" type="text" list="yearList" placeholder="例：2015年度 / Z会 第3回" autocomplete="off"><datalist id="yearList"></datalist></div>
+        <div class="field"><label class="flabel" for="yearPick">年度・回</label>
+          <div class="lpick"><select id="kindPick" aria-label="種類" hidden></select><select id="yearPick"></select></div>
+          <input id="yearFree" type="text" placeholder="例：2003年度 / 東大実戦模試 第1回" autocomplete="off" aria-label="年度・回の名前" hidden></div>
         <div class="field"><label class="flabel" for="date">解いた日</label><input id="date" type="date"></div>
       </div>
       <div class="field">
@@ -179,10 +223,12 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 
   <!-- 一覧 -->
   <section class="view" id="view-list" hidden>
-    <div class="filters">
+    <div class="minis" role="tablist" aria-label="一覧の見方"><button type="button" class="mini" role="tab" data-lmode="grid" aria-selected="true">消化表</button><button type="button" class="mini" role="tab" data-lmode="list" aria-selected="false">記録</button></div>
+    <div class="filters" id="listFilters">
       <select id="listExam" aria-label="試験"></select>
       <select id="listSubj" aria-label="科目"></select>
     </div>
+    <div class="card plain" id="gridBody"></div>
     <div id="listBody"></div>
   </section>
 
@@ -211,7 +257,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     <div class="card">
       <div class="field">
         <span class="flabel">見本で試す</span>
-        <p class="note">見本のデータ（東大の過去問7年分、共テの予想問題4回分）を入れた状態で、画面を確かめられます。もりやの記録には混ざりません。</p>
+        <p class="note">見本のデータ（東大の過去問7年分、共テ4回分、併願校すこし）を入れた状態で、画面を確かめられます。もりやの記録には混ざりません。</p>
       </div>
       <button type="button" class="tool" id="demoOn">見本データで見てみる</button>
     </div>
@@ -236,6 +282,23 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   </section>
 </div>
 
+<!-- 受け箱へ送る -->
+<dialog id="sendDlg" class="sheet" aria-labelledby="sendTitle">
+  <form id="sendForm" novalidate>
+    <div class="sheethead"><h2 id="sendTitle">受け箱へ送る</h2><button type="button" class="tool" id="sendClose">閉じる</button></div>
+    <p class="note">間違えた問題を受け箱（study-inbox）に送ります。Claudeが写真を読んでAnkiのカードにするので、問題の写真は必ず入れてください。</p>
+    <div class="field"><span class="flabel">問題の写真 <em class="req">必須</em></span><label class="pick" for="ph-problem">写真を撮る・選ぶ</label><input id="ph-problem" type="file" accept="image/*" multiple hidden><div class="thumbs" id="th-problem"></div></div>
+    <div class="field"><span class="flabel">自分の解答の写真</span><label class="pick sub" for="ph-mine">写真を撮る・選ぶ</label><input id="ph-mine" type="file" accept="image/*" multiple hidden><div class="thumbs" id="th-mine"></div></div>
+    <div class="field"><span class="flabel">模範解答の写真</span><label class="pick sub" for="ph-answer">写真を撮る・選ぶ</label><input id="ph-answer" type="file" accept="image/*" multiple hidden><div class="thumbs" id="th-answer"></div></div>
+    <div class="field"><span class="flabel">科目</span><div class="chips" id="sendSubj" role="radiogroup" aria-label="科目"></div></div>
+    <div class="field"><label class="flabel" for="sendSource">出典</label><input id="sendSource" type="text" autocomplete="off"></div>
+    <div class="field"><span class="flabel">間違えた原因（いくつでも）</span><div class="chips" id="sendReasons" aria-label="間違えた原因"></div></div>
+    <div class="field"><label class="flabel" for="sendMemo">メモ</label><textarea id="sendMemo" rows="2" placeholder="例：(2)で場合分けを落とした"></textarea></div>
+    <button type="submit" class="primary" id="sendBtn">受け箱に送る</button>
+    <p class="msg" id="sendMsg" role="status"></p>
+  </form>
+</dialog>
+
 <script>
 (function(){
   'use strict';
@@ -249,45 +312,70 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   // ---------- 初期の試験と科目（満点の多くは仮。設定で直せる） ----------
   const DEFAULT_EXAMS = [
     {id:'todai', name:'東大2次', note:'理科類', subjects:[
-      {id:'kokugo', name:'国語', target:40, prov:true, parts:[P('第1問 現代文',40), P('第2問 古文',20), P('第3問 漢文',20)]},
-      {id:'sugaku', name:'数学', target:65, prov:true, parts:nParts(6, 20)},
-      {id:'eigo', name:'英語', target:75, prov:true, parts:['1A','1B','2A','2B','3A','3B','3C','4A','4B','5'].map(x => P(x, 12))},
-      {id:'butsuri', name:'物理', target:30, prov:true, parts:nParts(3, 20)},
-      {id:'kagaku', name:'化学', target:35, prov:true, parts:nParts(3, 20)},
+      {id:'kokugo', name:'国語', short:'国', target:40, prov:true, parts:[P('第1問 現代文',40), P('第2問 古文',20), P('第3問 漢文',20)]},
+      {id:'sugaku', name:'数学', short:'数', target:65, prov:true, parts:nParts(6, 20)},
+      {id:'eigo', name:'英語', short:'英', target:75, prov:true, parts:['1A','1B','2A','2B','3A','3B','3C','4A','4B','5'].map(x => P(x, 12))},
+      {id:'butsuri', name:'物理', short:'物', target:30, prov:true, parts:nParts(3, 20)},
+      {id:'kagaku', name:'化学', short:'化', target:35, prov:true, parts:nParts(3, 20)},
     ]},
     {id:'kyote', name:'共通テスト', note:'', subjects:[
-      {id:'kokugo', name:'国語', target:180, prov:true, parts:[P('第1問',45), P('第2問',45), P('第3問',20), P('第4問',45), P('第5問',45)]},
-      {id:'sugaku1', name:'数学IA', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'sugaku2', name:'数学IIBC', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'eigoR', name:'英語R', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'eigoL', name:'英語L', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'butsuri', name:'物理', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'kagaku', name:'化学', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'kokyo', name:'公共・政経', target:90, prov:false, parts:[P('合計',100)]},
-      {id:'joho', name:'情報I', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'kokugo', short:'国', name:'国語', target:180, prov:true, parts:[P('第1問',45), P('第2問',45), P('第3問',20), P('第4問',45), P('第5問',45)]},
+      {id:'sugaku1', short:'IA', name:'数学IA', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'sugaku2', short:'IIBC', name:'数学IIBC', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'eigoR', short:'R', name:'英語R', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'eigoL', short:'L', name:'英語L', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'butsuri', short:'物', name:'物理', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'kagaku', short:'化', name:'化学', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'kokyo', short:'公', name:'公共・政経', target:90, prov:false, parts:[P('合計',100)]},
+      {id:'joho', short:'情', name:'情報I', target:90, prov:false, parts:[P('合計',100)]},
     ]},
-    {id:'hamu', name:'大阪公立 工', note:'中期', subjects:[]},
-    {id:'kyudai', name:'九大 理 化学科', note:'後期', subjects:[]},
-    {id:'keio', name:'慶應 経済', note:'A方式', subjects:[]},
+    // 大阪公立 工 中期の個別試験：数学240・英語120・理科240（ベネッセ マナビジョンの2027年度入試情報）。理科を物理・化学120ずつに分けたのは仮
+    {id:'hamu', name:'大阪公立 工', note:'中期', subjects:[
+      {id:'sugaku', name:'数学', short:'数', target:null, prov:false, parts:[P('合計',240)]},
+      {id:'eigo', name:'英語', short:'英', target:null, prov:false, parts:[P('合計',120)]},
+      {id:'butsuri', name:'物理', short:'物', target:null, prov:true, parts:[P('合計',120)]},
+      {id:'kagaku', name:'化学', short:'化', target:null, prov:true, parts:[P('合計',120)]},
+    ]},
+    // 慶應 経済 A方式：2027年度から英語200・数学200（各100分）、小論文は休止（慶應義塾大学の発表）
+    {id:'keio', name:'慶應 経済', note:'A方式', subjects:[
+      {id:'eigo', name:'英語', short:'英', target:null, prov:false, parts:[P('合計',200)]},
+      {id:'sugaku', name:'数学', short:'数', target:null, prov:false, parts:[P('合計',200)]},
+    ]},
   ];
+  const EXAMS_VER = 2;
+  const clone = x => JSON.parse(JSON.stringify(x));
   const TODAI_SUBJ = ['kokugo','sugaku','eigo','butsuri','kagaku'];
 
   // ---------- 状態 ----------
   const LS_DATA = 'scores-data-v1', LS_GH = 'study-inbox-settings-v1', LS_UI = 'scores-ui-v1';
   const DEMO = location.hash === '#demo';
-  let data = {v:1, exams:DEFAULT_EXAMS, examsAt:'1970-01-01T00:00:00.000Z', attempts:[], kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
+  let data = {v:1, exams:clone(DEFAULT_EXAMS), examsVer:EXAMS_VER, examsAt:'1970-01-01T00:00:00.000Z', attempts:[], kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
   let dirty = false;
   try { const v = JSON.parse(localStorage.getItem(LS_DATA) || 'null'); if (v && v.v === 1) { data = v.data; dirty = !!v.dirty; } } catch(e) {}
+  // 古い版の試験設定を新しい版に合わせる（科目の略称、併願校の科目、九大を外す）
+  function migrate(d){
+    if ((d.examsVer || 1) >= EXAMS_VER) return false;
+    const def = id => DEFAULT_EXAMS.find(e => e.id === id);
+    d.exams.forEach(e => { const de = def(e.id); if (!de) return;
+      e.subjects.forEach(s => { const ds = de.subjects.find(x => x.id === s.id); if (ds && !s.short) s.short = ds.short; }); });
+    for (const id of ['hamu', 'keio']) {
+      const e = d.exams.find(x => x.id === id);
+      if (!e) d.exams.push(clone(def(id))); else if (!e.subjects.length) e.subjects = clone(def(id).subjects);
+    }
+    if (!d.attempts.some(a => a.examId === 'kyudai' && !a.deleted)) d.exams = d.exams.filter(e => e.id !== 'kyudai');
+    d.examsVer = EXAMS_VER; d.examsAt = new Date().toISOString(); return true;
+  }
+  if (migrate(data)) dirty = true;
   let gh = {owner:'', repo:'', token:''};
   try { Object.assign(gh, JSON.parse(localStorage.getItem(LS_GH) || '{}')); } catch(e) {}
-  let ui = {exam:'todai', subj:'sugaku'};
+  let ui = {exam:'todai', subj:'sugaku', kind:'本試', lmode:'grid'};
   try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI) || '{}')); } catch(e) {}
   const ghReady = () => !!(gh.owner && gh.repo && gh.token);
   const saveLocal = () => { if (DEMO) return; try { localStorage.setItem(LS_DATA, JSON.stringify({v:1, data, dirty})); } catch(e) {} };
   // ---------- 見本データ（見本モードのときだけ。保存も同期もしない） ----------
   function makeDemo(){
     let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
-    const exams = JSON.parse(JSON.stringify(DEFAULT_EXAMS));
+    const exams = clone(DEFAULT_EXAMS);
     const atts = []; const day = (n) => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10); };
     const base = {kokugo:.48, sugaku:.52, eigo:.6, butsuri:.42, kagaku:.5};
     const memos = {sugaku:['第4問 確率で場合分けを落とした','整数問題は方針すら立たず','微積は完答'], butsuri:['電磁気の誘導起電力の向きを逆にした'], kagaku:['有機の構造決定で異性体を見落とし'], eigo:['要約が字数オーバー'], kokugo:['漢文の句形を忘れた']};
@@ -307,14 +395,19 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     atts.push({id:'demo-re', examId:'todai', subjectId:'sugaku', examName:'東大2次', subjectName:'数学', label:'2012年度', date:day(2), parts:s2.parts, scores:[20,18,16,12,20,14], minutes:140, memo:'2回目。第4問の方針は立った', updatedAt:new Date().toISOString()});
     // 共テ（予想問題集）
     const k = exams[1].subjects;
-    ['Z会 第1回', 'Z会 第2回', '駿台 第1回', '2024年度本試'].forEach((lab, i) => {
+    ['Z会 第1回', 'Z会 第2回', '駿台 第1回', '2024年度 本試'].forEach((lab, i) => {
       for (const sid of ['kokugo', 'eigoR', 'eigoL', 'sugaku1']) {
         const s = k.find(x => x.id === sid);
         const scores = s.parts.map(p => Math.round(p.max * Math.min(1, .72 + i * .04 + (rnd() - .5) * .16)));
         atts.push({id:`demo-k${i}${sid}`, examId:'kyote', subjectId:sid, examName:'共通テスト', subjectName:s.name, label:lab, date:day(30 - i * 6), parts:s.parts, scores, minutes:null, memo:'', updatedAt:new Date().toISOString()});
       }
     });
-    return {v:1, exams, examsAt:'1970-01-01T00:00:00.000Z', attempts:atts, kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
+    // 併願校
+    [['keio', '2024年度', 'eigo', 128], ['keio', '2024年度', 'sugaku', 141], ['keio', '2023年度', 'eigo', 117], ['hamu', '2024年度', 'sugaku', 168], ['hamu', '2024年度', 'butsuri', 81]].forEach(([eid, lab, sid, v], i) => {
+      const e = exams.find(x => x.id === eid), s = e.subjects.find(x => x.id === sid);
+      atts.push({id:`demo-h${i}`, examId:eid, subjectId:sid, examName:e.name, subjectName:s.name, label:lab, date:day(12 - i), parts:s.parts, scores:[v], minutes:null, memo:'', updatedAt:new Date().toISOString()});
+    });
+    return {v:1, exams, examsVer:EXAMS_VER, examsAt:'1970-01-01T00:00:00.000Z', attempts:atts, kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
   }
   if (DEMO) data = makeDemo();
   const saveUI = () => { try { localStorage.setItem(LS_UI, JSON.stringify(ui)); } catch(e) {} };
@@ -328,6 +421,23 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   const pct = (a, b) => b ? Math.round(a * 1000 / b) / 10 : 0;
   const examLabel = e => e.name + (e.note ? `（${e.note}）` : '');
   const yearKey = l => { const m = String(l).match(/(\d{4})/); return m ? +m[1] : -1; };
+  const shortOf = s => s.short || s.name.slice(0, 2);
+  const newest = xs => xs.slice().sort((x, y) => y.date.localeCompare(x.date) || y.updatedAt.localeCompare(x.updatedAt))[0];
+
+  // ---------- 年度・回の選び方 ----------
+  // いちばん新しい年度：3月からその年の年度を出す（2026年10月なら2026年度まで）
+  const TOP_YEAR = (() => { const d = new Date(); return d.getMonth() >= 2 ? d.getFullYear() : d.getFullYear() - 1; })();
+  const range = (a, b) => { const o = []; if (a >= b) for (let i = a; i >= b; i--) o.push(i); else for (let i = a; i <= b; i++) o.push(i); return o; };
+  const KYOTE_KINDS = ['本試', '追試', 'Z会', '駿台', '河合'];
+  const KYOTE_FIRST = 2021, OLDEST = 1990, FREE = '__free';
+  function labelsFor(eid, kind){
+    if (eid === 'kyote') return (kind === '本試' || kind === '追試') ? range(TOP_YEAR, KYOTE_FIRST).map(y => `${y}年度 ${kind}`) : range(1, 10).map(n => `${kind} 第${n}回`);
+    return range(TOP_YEAR, OLDEST).map(y => `${y}年度`);
+  }
+  function parseLabel(eid, l){
+    if (eid === 'kyote') { let m = l.match(/^(\d{4})年度 (本試|追試)$/); if (m) return +m[1] <= TOP_YEAR && +m[1] >= KYOTE_FIRST ? {kind:m[2]} : null; m = l.match(/^(Z会|駿台|河合) 第(\d+)回$/); return m && +m[2] >= 1 && +m[2] <= 10 ? {kind:m[1]} : null; }
+    const m = l.match(/^(\d{4})年度$/); return m && +m[1] <= TOP_YEAR && +m[1] >= OLDEST ? {kind:''} : null;
+  }
 
   // ---------- GitHub 同期 ----------
   const PATH = 'records/scores.json';
@@ -341,7 +451,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     const byId = new Map();
     for (const x of [...a.attempts, ...b.attempts]) { const y = byId.get(x.id); if (!y || x.updatedAt > y.updatedAt) byId.set(x.id, x); }
     const out = {v:1, attempts:[...byId.values()].sort((x, y) => x.id < y.id ? -1 : 1)};
-    if (b.examsAt > a.examsAt) { out.exams = b.exams; out.examsAt = b.examsAt; } else { out.exams = a.exams; out.examsAt = a.examsAt; }
+    const w = b.examsAt > a.examsAt ? b : a; out.exams = w.exams; out.examsAt = w.examsAt; out.examsVer = w.examsVer || 1;
     if (b.rateAt > a.rateAt) { out.kyoteRate = b.kyoteRate; out.rateAt = b.rateAt; } else { out.kyoteRate = a.kyoteRate; out.rateAt = a.rateAt; }
     return out;
   }
@@ -359,7 +469,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
         let remote = null, sha;
         if (r.ok) { const j = await r.json(); sha = j.sha; remote = JSON.parse(dec(j.content)); }
         else if (r.status !== 404) throw new Error('HTTP ' + r.status);
-        const merged = merge(data, remote);
+        const merged = merge(data, remote); migrate(merged);
         const changed = JSON.stringify(merged) !== JSON.stringify(remote);
         data = merged;
         if (!changed) { dirty = false; break; }
@@ -383,9 +493,23 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 
   // ---------- 記録する ----------
   let editingId = null;
-  function fillSelectLike(){ /* datalist of years */
-    const y0 = new Date().getFullYear();
-    $('yearList').innerHTML = Array.from({length: 30}, (_, i) => `<option value="${y0 - i}年度"></option>`).join('');
+  const solvedN = (l) => live().filter(a => a.examId === ui.exam && a.subjectId === ui.subj && a.label === l && a.id !== editingId).length;
+  const getLabel = () => $('yearPick').value === FREE ? $('yearFree').value.trim() : $('yearPick').value;
+  // pref：選んでおきたい年度。なければ、まだ解いていないいちばん新しい年度（回）
+  function fillPick(pref){
+    const isK = ui.exam === 'kyote';
+    $('kindPick').hidden = !isK;
+    if (isK) { if (!KYOTE_KINDS.includes(ui.kind)) ui.kind = '本試'; $('kindPick').innerHTML = KYOTE_KINDS.map(k => `<option value="${k}"${k === ui.kind ? ' selected' : ''}>${k}</option>`).join(''); }
+    const labels = labelsFor(ui.exam, ui.kind);
+    $('yearPick').innerHTML = labels.map(l => { const n = solvedN(l); return `<option value="${esc(l)}">${esc(l)}${n ? `（済${n > 1 ? '・' + n + '回' : ''}）` : ''}</option>`; }).join('') + `<option value="${FREE}">その他（自分で書く）</option>`;
+    const v = pref === FREE ? FREE : (pref && labels.includes(pref) ? pref : (labels.find(l => !solvedN(l)) || labels[0]));
+    $('yearPick').value = v; $('yearFree').hidden = v !== FREE;
+  }
+  function setLabel(l){
+    const p = parseLabel(ui.exam, l);
+    if (p) { if (ui.exam === 'kyote') ui.kind = p.kind; fillPick(l); }
+    else { fillPick(FREE); $('yearFree').value = l; }
+    updateAttemptNote();
   }
   function renderExamChips(){
     $('examChips').innerHTML = data.exams.map(e => `<button type="button" class="chip" role="radio" aria-checked="${e.id === ui.exam}" data-exam="${e.id}">${esc(e.name)}</button>`).join('');
@@ -394,6 +518,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     $('subjChips').innerHTML = ex.subjects.length
       ? ex.subjects.map(s => `<button type="button" class="chip" role="radio" aria-checked="${s.id === ui.subj}" data-subj="${s.id}">${esc(s.name)}</button>`).join('')
       : `<p class="note">この試験には科目がまだありません。「設定」で科目と満点を足してください。</p>`;
+    fillPick($('yearPick').value || null);
     renderParts();
   }
   function renderParts(keep){
@@ -416,21 +541,23 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     } else { $('sumVs').textContent = s && s.target ? `目標 ${s.target}` : ''; $('sumVs').dataset.kind = ''; }
   }
   function updateAttemptNote(){
-    const label = $('yearLabel').value.trim();
-    if (!label) { $('attemptNote').textContent = '年度を入れると何回目か出ます'; return; }
+    const label = getLabel();
+    if (!label) { $('attemptNote').textContent = '年度・回の名前を書くと何回目か出ます'; return; }
     const n = live().filter(a => a.examId === ui.exam && a.subjectId === ui.subj && a.label === label && a.id !== editingId).length;
     $('attemptNote').textContent = n ? `${n + 1}回目（前回までの記録も残ります）` : 'はじめて';
   }
-  $('examChips').addEventListener('click', e => { const b = e.target.closest('[data-exam]'); if (!b) return; ui.exam = b.dataset.exam; saveUI(); renderExamChips(); });
+  $('examChips').addEventListener('click', e => { const b = e.target.closest('[data-exam]'); if (!b) return; if (ui.exam !== b.dataset.exam) $('yearPick').innerHTML = ''; ui.exam = b.dataset.exam; saveUI(); renderExamChips(); });
   $('subjChips').addEventListener('click', e => { const b = e.target.closest('[data-subj]'); if (!b) return; ui.subj = b.dataset.subj; saveUI(); renderExamChips(); });
   $('parts').addEventListener('input', updateSum);
-  $('yearLabel').addEventListener('input', updateAttemptNote);
+  $('kindPick').addEventListener('change', () => { ui.kind = $('kindPick').value; saveUI(); fillPick(); updateAttemptNote(); });
+  $('yearPick').addEventListener('change', () => { $('yearFree').hidden = $('yearPick').value !== FREE; if (!$('yearFree').hidden) $('yearFree').focus(); updateAttemptNote(); });
+  $('yearFree').addEventListener('input', updateAttemptNote);
   $('addForm').addEventListener('submit', e => {
     e.preventDefault();
     const s = subj(ui.exam, ui.subj);
     if (!s) { $('addMsg').textContent = '科目を選んでください。'; return; }
-    const label = $('yearLabel').value.trim();
-    if (!label) { $('addMsg').textContent = '年度か回の名前を入れてください。'; $('yearLabel').focus(); return; }
+    const label = getLabel();
+    if (!label) { $('addMsg').textContent = '「その他」のときは、年度か回の名前を書いてください。'; $('yearFree').focus(); return; }
     const scores = currentScores();
     if (!scores.some(x => x != null)) { $('addMsg').textContent = '点数を1つ以上入れてください。'; return; }
     const over = scores.findIndex((x, i) => x != null && x > s.parts[i].max);
@@ -449,7 +576,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   });
   function resetForm(){
     editingId = null; $('saveBtn').textContent = '記録する';
-    $('yearLabel').value = ''; $('minutes').value = ''; $('memo').value = '';
+    $('minutes').value = ''; $('memo').value = '';
     $('date').value = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0, 10);
     renderParts();
   }
@@ -457,7 +584,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     const a = data.attempts.find(x => x.id === id); if (!a) return;
     ui.exam = a.examId; ui.subj = a.subjectId; renderExamChips();
     editingId = a.id; $('saveBtn').textContent = 'この記録を直す';
-    $('yearLabel').value = a.label; $('date').value = a.date; $('minutes').value = a.minutes ?? ''; $('memo').value = a.memo || '';
+    setLabel(a.label); $('date').value = a.date; $('minutes').value = a.minutes ?? ''; $('memo').value = a.memo || '';
     renderParts(a.scores); show('add'); $('addMsg').textContent = '直してから「この記録を直す」を押してください。';
   }
 
@@ -471,6 +598,54 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     sel.innerHTML = (withAll ? '<option value="">すべての科目</option>' : '') + (ex?.subjects || []).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   }
   function renderList(){
+    const g = ui.lmode !== 'list';
+    document.querySelectorAll('[data-lmode]').forEach(b => b.setAttribute('aria-selected', String((b.dataset.lmode === 'grid') === g)));
+    $('listSubj').hidden = g; $('listFilters').classList.toggle('one', g);
+    $('gridBody').hidden = !g; $('listBody').hidden = g;
+    if (g) renderGrid(); else renderRecords();
+  }
+  // 消化表：年度×科目。数字はいちばん新しい記録の点
+  function gridRows(eid){
+    const rec = [...new Set(live().filter(a => a.examId === eid).map(a => a.label))];
+    const base = eid === 'kyote' ? range(TOP_YEAR, KYOTE_FIRST).map(y => `${y}年度 本試`) : range(TOP_YEAR, TOP_YEAR - (eid === 'todai' ? 24 : 9)).map(y => `${y}年度`);
+    const rank = l => { const p = parseLabel(eid, l); if (!p) return 9; return eid === 'kyote' ? KYOTE_KINDS.indexOf(p.kind) : 0; };
+    const extra = rec.filter(l => !base.includes(l)).sort((x, y) => rank(x) - rank(y) || yearKey(y) - yearKey(x) || x.localeCompare(y, 'ja', {numeric:true}));
+    return {base, rows:[...base, ...extra]};
+  }
+  const rowName = l => l.replace(/^(\d{4})年度$/, '$1').replace(/^(\d{4})年度 /, '$1 ');
+  function renderGrid(){
+    const eid = $('listExam').value, ex = exam(eid);
+    if (!ex || !ex.subjects.length) { $('gridBody').innerHTML = '<p class="empty">この試験には科目がまだありません。「設定」で足してください。</p>'; return; }
+    const all = live().filter(a => a.examId === eid);
+    const {base, rows} = gridRows(eid); const done = ex.subjects.map(() => 0);
+    const body = rows.map(l => {
+      let sum = 0, cnt = 0;
+      const cells = ex.subjects.map((s, j) => {
+        const xs = all.filter(a => a.label === l && a.subjectId === s.id);
+        if (!xs.length) return `<td><button type="button" class="gc none" data-go="${esc(l)}" data-sid="${s.id}" aria-label="${esc(l)} ${esc(s.name)}：まだ。押すと記録画面へ"></button></td>`;
+        const a = newest(xs), v = sumOf(a); done[j]++; cnt++; sum += v;
+        const k = s.target ? (v >= s.target ? 'ok' : 'warn') : '';
+        return `<td><button type="button" class="gc" data-kind="${k}" data-jump="${esc(l)}" aria-label="${esc(l)} ${esc(s.name)}：${fmt(v)}点${xs.length > 1 ? `、${xs.length}回解いた` : ''}">${fmt(v)}${xs.length > 1 ? `<sup>${xs.length}</sup>` : ''}</button></td>`;
+      }).join('');
+      return `<tr><th scope="row">${esc(rowName(l))}</th>${cells}<td class="gsum${cnt === ex.subjects.length ? '' : ' gpart'}">${cnt ? fmt(sum) : ''}</td></tr>`;
+    }).join('');
+    const maxAll = ex.subjects.reduce((t, s) => t + maxOf(s.parts), 0);
+    $('gridBody').innerHTML = `<div class="chead"><span>${esc(examLabel(ex))}の消化表</span></div>
+      <div class="tscroll"><table class="gtable"><thead><tr><th></th>${ex.subjects.map(s => `<th scope="col">${esc(shortOf(s))}</th>`).join('')}<th scope="col" class="gsum">計</th></tr></thead>
+      <tbody>${body}</tbody><tfoot><tr><th scope="row">済</th>${done.map(n => `<td>${n}</td>`).join('')}<td class="gsum">/ ${maxAll}</td></tr></tfoot></table></div>
+      <p class="note">数字はいちばん新しい記録の点数です。右上の小さい数字は解いた回数。緑は目標以上、オレンジは目標未満。空いたマスを押すと、その年度と科目で記録画面が開きます。点数を押すと、その年度の記録へ飛びます。${eid === 'kyote' ? '追試と予想問題集は、記録した回だけ出ます。' : `表には${base.length}年度分を出しています。それより前の年度は記録すると出ます。`}</p>`;
+  }
+  $('gridBody').addEventListener('click', e => {
+    const go = e.target.closest('[data-go]');
+    if (go) { ui.exam = $('listExam').value; ui.subj = go.dataset.sid; saveUI(); editingId = null; $('saveBtn').textContent = '記録する';
+      renderExamChips(); setLabel(go.dataset.go); show('add'); $('addMsg').textContent = ''; return; }
+    const j = e.target.closest('[data-jump]'); if (!j) return;
+    ui.lmode = 'list'; saveUI(); $('listSubj').value = ''; renderList();
+    const sec = [...document.querySelectorAll('#listBody .ygroup')].find(x => x.dataset.label === j.dataset.jump);
+    if (sec) sec.scrollIntoView({block:'start'});
+  });
+  document.querySelector('.minis').addEventListener('click', e => { const b = e.target.closest('[data-lmode]'); if (!b) return; ui.lmode = b.dataset.lmode; saveUI(); renderList(); });
+  function renderRecords(){
     const eid = $('listExam').value, sid = $('listSubj').value;
     const rows = live().filter(a => a.examId === eid && (!sid || a.subjectId === sid));
     if (!rows.length) { $('listBody').innerHTML = '<p class="empty">まだ記録がありません。「記録する」から入れてください。</p>'; return; }
@@ -480,7 +655,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     $('listBody').innerHTML = keys.map(k => {
       const order = sid => { const i = (exam(eid)?.subjects || []).findIndex(s => s.id === sid); return i < 0 ? 99 : i; };
       const items = groups.get(k).sort((x, y) => order(x.subjectId) - order(y.subjectId) || x.date.localeCompare(y.date));
-      return `<section class="ygroup"><h2>${esc(k)}</h2>${sid ? '' : yearSum(eid, groups.get(k))}<ol class="atts">${items.map(a => attRow(a, groups.get(k))).join('')}</ol></section>`;
+      return `<section class="ygroup" data-label="${esc(k)}"><h2>${esc(k)}</h2>${sid ? '' : yearSum(eid, groups.get(k))}<ol class="atts">${items.map(a => attRow(a, groups.get(k))).join('')}</ol></section>`;
     }).join('');
   }
   // 年度の合計：科目ごとにいちばん新しい記録を足す（推移の東大表と同じ数え方）
@@ -511,13 +686,14 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
       <div class="ameta">${esc(a.date.replace(/-/g, '/'))}${a.minutes != null ? `・${a.minutes}分` : ''}${s && s.target ? `・目標 ${s.target}` : ''}</div>
       ${a.memo ? `<div class="amemo">${esc(a.memo)}</div>` : ''}
       <details class="adetail"><summary>大問ごとの点と操作</summary>
-        <table class="ptable"><tbody>${a.parts.map((p, i) => `<tr><th>${esc(p.name)}</th><td>${a.scores[i] ?? '－'}</td><td>/ ${p.max}</td></tr>`).join('')}</tbody></table>
-        <div class="tools"><button type="button" class="tool" data-edit="${a.id}">直す</button><button type="button" class="tool danger" data-del="${a.id}">消す</button></div>
+        <table class="ptable"><tbody>${a.parts.map((p, i) => `<tr><th>${esc(p.name)}</th><td>${a.scores[i] ?? '－'}</td><td>/ ${p.max}</td><td>${a.parts.length > 1 ? `<button type="button" class="tool sm" data-send="${a.id}" data-part="${i}">受け箱へ</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        <div class="tools"><button type="button" class="tool" data-send="${a.id}" data-part="-1">間違えた問題を受け箱へ</button><button type="button" class="tool" data-edit="${a.id}">直す</button><button type="button" class="tool danger" data-del="${a.id}">消す</button></div>
       </details></li>`;
   }
   $('listExam').addEventListener('change', () => { fillSubjSelect($('listSubj'), $('listExam').value, true); renderList(); });
   $('listSubj').addEventListener('change', renderList);
   $('listBody').addEventListener('click', e => {
+    const sd = e.target.closest('[data-send]'); if (sd) { openSend(sd.dataset.send, +sd.dataset.part); return; }
     const ed = e.target.closest('[data-edit]'); if (ed) { startEdit(ed.dataset.edit); return; }
     const del = e.target.closest('[data-del]'); if (!del) return;
     if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'もう一度押すと消します'; return; }
@@ -567,7 +743,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     const ex = exam('todai'); const rows = live().filter(a => a.examId === 'todai');
     const labels = [...new Set(rows.map(a => a.label))].sort((x, y) => yearKey(y) - yearKey(x));
     const full = labels.map(l => {
-      const per = TODAI_SUBJ.map(sid => rows.filter(a => a.label === l && a.subjectId === sid).sort((x, y) => y.date.localeCompare(x.date))[0]);
+      const per = TODAI_SUBJ.map(sid => newest(rows.filter(a => a.label === l && a.subjectId === sid)));
       return {l, per, done: per.filter(Boolean).length};
     }).filter(x => x.done > 0);
     const kyote = 110 * (+data.kyoteRate || 0) / 100;
@@ -645,6 +821,89 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     data.examsAt = now(); changed(); renderCfg(); renderExamChips(); fillAllSelects();
   });
 
+  // ---------- 受け箱へ送る（受け箱アプリと同じ形で study-inbox/inbox/<id>/ に入れる） ----------
+  const IN_SUBJ = ['数学', '物理', '化学', '英語', '国語', 'その他'];
+  const IN_REASONS = ['方針が立たない', '計算ミス', '条件の見落とし', '論証の不備', '知識不足', '問題の読み違い', '時間切れ'];
+  const KINDS = ['problem', 'mine', 'answer'];
+  const toInSubj = n => /数/.test(n) ? '数学' : /物理/.test(n) ? '物理' : /化学/.test(n) ? '化学' : /英/.test(n) ? '英語' : /国/.test(n) ? '国語' : 'その他';
+  let snd = null; // {subject, reasons:Set, picked:{problem:[],...}, id, sent:[]}
+  async function shrink(file){
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const max = 1600, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+      const tc = document.createElement('canvas'); const ts = 160 / Math.max(c.width, c.height); tc.width = Math.round(c.width * ts); tc.height = Math.round(c.height * ts);
+      tc.getContext('2d').drawImage(c, 0, 0, tc.width, tc.height);
+      return {blob, thumb: tc.toDataURL('image/jpeg', 0.7)};
+    } finally { URL.revokeObjectURL(url); }
+  }
+  const b64blob = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+  async function putNew(path, content, message){
+    const r = await api('/contents/' + path, {method:'PUT', body: JSON.stringify({message, content})});
+    if (r.ok || r.status === 422) return; // 422：前に送った同じファイルがある
+    throw new Error('HTTP ' + r.status);
+  }
+  function renderSendChips(){
+    $('sendSubj').innerHTML = IN_SUBJ.map(s => `<button type="button" class="chip" role="radio" aria-checked="${s === snd.subject}" data-s="${s}">${s}</button>`).join('');
+    $('sendReasons').innerHTML = IN_REASONS.map(s => `<button type="button" class="chip" aria-pressed="${snd.reasons.has(s)}" data-r="${s}">${s}</button>`).join('');
+  }
+  function renderThumbs(k){
+    $('th-' + k).innerHTML = snd.picked[k].map((p, i) => `<span class="th"><img src="${p.thumb}" alt=""><button type="button" class="rm" data-kind="${k}" data-i="${i}" aria-label="この写真を外す">×</button></span>`).join('');
+  }
+  function openSend(aid, part){
+    const a = data.attempts.find(x => x.id === aid); if (!a) return;
+    const pn = part >= 0 && a.parts[part] ? ' ' + a.parts[part].name : '';
+    snd = {subject: toInSubj(a.subjectName), reasons: new Set(), picked: {problem:[], mine:[], answer:[]}, id: null, sent: []};
+    $('sendSource').value = `${a.examName} ${a.label} ${a.subjectName}${pn}`;
+    $('sendMemo').value = ''; $('sendMsg').textContent = ''; $('sendBtn').disabled = false;
+    renderSendChips(); KINDS.forEach(renderThumbs);
+    if (DEMO) $('sendMsg').textContent = '見本のあいだは送りません。';
+    $('sendDlg').showModal();
+  }
+  $('sendClose').addEventListener('click', () => $('sendDlg').close());
+  $('sendSubj').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; snd.subject = b.dataset.s; renderSendChips(); });
+  $('sendReasons').addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; const r = b.dataset.r; snd.reasons.has(r) ? snd.reasons.delete(r) : snd.reasons.add(r); renderSendChips(); });
+  KINDS.forEach(k => $('ph-' + k).addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    $('sendMsg').textContent = '写真を読み込み中…';
+    for (const f of files) { try { snd.picked[k].push(await shrink(f)); } catch(err) { $('sendMsg').textContent = '読み込めない写真がありました。'; } }
+    snd.id = null; snd.sent = []; // 写真が変わったら、送り直しは新しいフォルダにする
+    renderThumbs(k); if ($('sendMsg').textContent === '写真を読み込み中…') $('sendMsg').textContent = '';
+  }));
+  $('sendForm').addEventListener('click', e => {
+    const b = e.target.closest('.rm'); if (!b) return;
+    snd.picked[b.dataset.kind].splice(+b.dataset.i, 1); snd.id = null; snd.sent = []; renderThumbs(b.dataset.kind);
+  });
+  $('sendForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (DEMO) { $('sendMsg').textContent = '見本のあいだは送りません。'; return; }
+    if (!ghReady()) { $('sendMsg').textContent = '「設定」で保存先を入れてから送ってください。'; return; }
+    if (!snd.picked.problem.length) { $('sendMsg').textContent = '問題の写真を1枚以上入れてください。'; return; }
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    if (!snd.id) { snd.id = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${Math.random().toString(36).slice(2, 6)}`; snd.createdAt = d.toISOString(); snd.sent = []; }
+    $('sendBtn').disabled = true; $('sendMsg').textContent = '送っています…';
+    try {
+      const files = {};
+      for (const k of KINDS) {
+        files[k] = [];
+        for (let i = 0; i < snd.picked[k].length; i++) {
+          const name = `${k}-${i + 1}.jpg`, path = `inbox/${snd.id}/${name}`; files[k].push(name);
+          if (!snd.sent.includes(path)) { await putNew(path, await b64blob(snd.picked[k][i].blob), `add ${snd.id} ${name}`); snd.sent.push(path); }
+        }
+      }
+      const meta = {app:'scores', v:1, id:snd.id, createdAt:snd.createdAt, subject:snd.subject, source:$('sendSource').value.trim(), reasons:[...snd.reasons], memo:$('sendMemo').value.trim(), files};
+      await putNew(`inbox/${snd.id}/meta.json`, enc(JSON.stringify(meta, null, 2)), `add ${snd.id} meta`);
+      snd.picked = {problem:[], mine:[], answer:[]}; snd.id = null; snd.sent = []; KINDS.forEach(renderThumbs);
+      $('sendMsg').textContent = '受け箱に送りました。別の大問も送るなら、写真を入れ直してください。';
+    } catch(err) {
+      const m = String(err.message || err);
+      $('sendMsg').textContent = /40[13]/.test(m) ? '鍵を確認してください（受け箱に書き込む許可がないようです）。' : '送れませんでした。電波を確認して、もう一度「受け箱に送る」を押してください。送れた写真は二重になりません。';
+    } finally { $('sendBtn').disabled = false; }
+  });
+
   // ---------- 画面 ----------
   function show(v){
     document.querySelectorAll('.segbtn').forEach(x => x.setAttribute('aria-selected', String(x.dataset.view === v)));
@@ -669,7 +928,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     if (!$('view-list').hidden) renderList(); if (!$('view-trend').hidden) renderTrend();
   }
 
-  fillSelectLike(); resetForm(); renderAll();
+  resetForm(); renderAll();
   $('setupBanner').hidden = ghReady() || DEMO;
   if (DEMO) { $('demoBanner').hidden = false; ui.exam = 'todai'; ui.subj = 'sugaku'; renderAll(); }
   $('demoOn').addEventListener('click', () => { location.hash = 'demo'; location.reload(); });
