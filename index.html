@@ -76,6 +76,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .ygroup{display:flex;flex-direction:column;gap:6px}
 .ygroup h2{margin:6px 0 0;font-family:var(--f-display);font-weight:400;font-size:1.25rem;display:flex;align-items:center;gap:10px}
 .ygroup h2::after{content:"";flex:1;height:1px;background:var(--rule)}
+.ysum{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 6px;background:var(--paper);border:1px solid var(--rule-soft);border-radius:10px;padding:8px 12px}
+.ysum .ylab{font-size:.8rem;font-weight:700;color:var(--muted)}
+.ysum>b{font-family:var(--f-display);font-weight:400;font-size:1.7rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.ysum .ymax{font-size:.85rem;font-weight:700;color:var(--muted)}
+.ysum .ynote{font-size:.75rem;color:var(--muted);margin-left:auto}
+.ysum .yest{flex-basis:100%;font-size:.8rem;font-weight:700;border-top:1px dashed var(--rule-soft);padding-top:4px;margin-top:2px}
+.ysum .yest b{font-family:var(--f-display);font-weight:400;font-size:1.2rem;font-variant-numeric:tabular-nums}
+.ysum .yest[data-kind="ok"]{color:var(--ok)} .ysum .yest[data-kind="warn"]{color:var(--warn)}
 ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .att{background:var(--paper);border:1px solid var(--rule-soft);border-left:5px solid var(--accent);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
 .atop{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -472,8 +480,24 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     $('listBody').innerHTML = keys.map(k => {
       const order = sid => { const i = (exam(eid)?.subjects || []).findIndex(s => s.id === sid); return i < 0 ? 99 : i; };
       const items = groups.get(k).sort((x, y) => order(x.subjectId) - order(y.subjectId) || x.date.localeCompare(y.date));
-      return `<section class="ygroup"><h2>${esc(k)}</h2><ol class="atts">${items.map(a => attRow(a, groups.get(k))).join('')}</ol></section>`;
+      return `<section class="ygroup"><h2>${esc(k)}</h2>${sid ? '' : yearSum(eid, groups.get(k))}<ol class="atts">${items.map(a => attRow(a, groups.get(k))).join('')}</ol></section>`;
     }).join('');
+  }
+  // 年度の合計：科目ごとにいちばん新しい記録を足す（推移の東大表と同じ数え方）
+  function yearSum(eid, items){
+    const latest = new Map();
+    items.forEach(a => { const b = latest.get(a.subjectId); if (!b || a.date > b.date || (a.date === b.date && a.updatedAt > b.updatedAt)) latest.set(a.subjectId, a); });
+    const list = [...latest.values()];
+    const sum = list.reduce((t, a) => t + sumOf(a), 0), max = list.reduce((t, a) => t + maxOf(a.parts), 0);
+    let note = `${list.length}科目`, extra = '';
+    if (eid === 'todai') {
+      const miss = TODAI_SUBJ.filter(s => !latest.has(s)).map(s => subj('todai', s)?.name || s);
+      if (miss.length) note += `（${miss.join('・')}がまだ）`;
+      else { const est = sum + 110 * (+data.kyoteRate || 0) / 100;
+        extra = `<span class="yest" data-kind="${est >= 340 ? 'ok' : 'warn'}">共テ見込みを足すと <b>${fmt(est)}</b> / 550</span>`; }
+    }
+    const re = items.length > list.length ? '・解き直しは新しいほう' : '';
+    return `<div class="ysum"><span class="ylab">合計</span><b>${fmt(sum)}</b><span class="ymax">/ ${max}</span><span class="ynote">${note}${re}</span>${extra}</div>`;
   }
   function attRow(a, sameLabel){
     const s = subj(a.examId, a.subjectId); const tot = sumOf(a), max = maxOf(a.parts);
