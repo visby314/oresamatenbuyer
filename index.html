@@ -36,6 +36,7 @@ h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(1.6rem,
 .segbtn{font:inherit;font-size:.85rem;font-weight:700;border:0;background:transparent;color:var(--muted);padding:7px 2px;border-radius:999px;cursor:pointer;white-space:nowrap}
 .segbtn[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
 .banner{margin:0;background:var(--warn-soft);color:var(--warn);font-size:.85rem;font-weight:700;padding:10px 14px;border-radius:10px}
+.banner.demo{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap}
 .banner[hidden],.view[hidden]{display:none}
 .view{display:flex;flex-direction:column;gap:12px}
 .card{background:var(--paper);border:1px solid var(--rule-soft);border-left:5px solid var(--accent);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -140,6 +141,8 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
     <button type="button" class="segbtn" role="tab" data-view="settings" aria-selected="false">設定</button>
   </nav>
 
+  <div class="banner demo" id="demoBanner" hidden><span>見本のデータを表示しています。ここで記録・変更しても保存されません。</span><button type="button" class="tool" id="demoOff">見本をやめる</button></div>
+
   <p class="banner" id="setupBanner" hidden>保存先がまだ設定されていません。「設定」で GitHub のリポジトリと鍵を入れてください。それまでの記録はこの端末に保存され、設定が済むと送られます。</p>
 
   <!-- 記録する -->
@@ -199,6 +202,14 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 
     <div class="card">
       <div class="field">
+        <span class="flabel">見本で試す</span>
+        <p class="note">見本のデータ（東大の過去問7年分、共テの予想問題4回分）を入れた状態で、画面を確かめられます。もりやの記録には混ざりません。</p>
+      </div>
+      <button type="button" class="tool" id="demoOn">見本データで見てみる</button>
+    </div>
+
+    <div class="card">
+      <div class="field">
         <label class="flabel" for="kyoteRate">共テの見込み（％）</label>
         <input id="kyoteRate" type="number" inputmode="decimal" min="0" max="100" step="0.5">
         <p class="note">東大の合計見込み（550点満点）を出すときに、共テ110点分をこの割合で足します。</p>
@@ -255,6 +266,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 
   // ---------- 状態 ----------
   const LS_DATA = 'scores-data-v1', LS_GH = 'study-inbox-settings-v1', LS_UI = 'scores-ui-v1';
+  const DEMO = location.hash === '#demo';
   let data = {v:1, exams:DEFAULT_EXAMS, examsAt:'1970-01-01T00:00:00.000Z', attempts:[], kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
   let dirty = false;
   try { const v = JSON.parse(localStorage.getItem(LS_DATA) || 'null'); if (v && v.v === 1) { data = v.data; dirty = !!v.dirty; } } catch(e) {}
@@ -263,7 +275,40 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   let ui = {exam:'todai', subj:'sugaku'};
   try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI) || '{}')); } catch(e) {}
   const ghReady = () => !!(gh.owner && gh.repo && gh.token);
-  const saveLocal = () => { try { localStorage.setItem(LS_DATA, JSON.stringify({v:1, data, dirty})); } catch(e) {} };
+  const saveLocal = () => { if (DEMO) return; try { localStorage.setItem(LS_DATA, JSON.stringify({v:1, data, dirty})); } catch(e) {} };
+  // ---------- 見本データ（見本モードのときだけ。保存も同期もしない） ----------
+  function makeDemo(){
+    let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const exams = JSON.parse(JSON.stringify(DEFAULT_EXAMS));
+    const atts = []; const day = (n) => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10); };
+    const base = {kokugo:.48, sugaku:.52, eigo:.6, butsuri:.42, kagaku:.5};
+    const memos = {sugaku:['第4問 確率で場合分けを落とした','整数問題は方針すら立たず','微積は完答'], butsuri:['電磁気の誘導起電力の向きを逆にした'], kagaku:['有機の構造決定で異性体を見落とし'], eigo:['要約が字数オーバー'], kokugo:['漢文の句形を忘れた']};
+    let n = 40;
+    for (const y of [2012, 2013, 2014, 2015, 2016, 2017, 2018]) {
+      const subs = y >= 2016 ? ['sugaku', 'butsuri'] : TODAI_SUBJ;
+      for (const sid of subs) {
+        const s = exams[0].subjects.find(x => x.id === sid); const grow = (y - 2012) * 0.03;
+        const scores = s.parts.map(p => Math.max(0, Math.min(p.max, Math.round(p.max * (base[sid] + grow + (rnd() - .5) * .7)))));
+        atts.push({id:'demo' + (n), examId:'todai', subjectId:sid, examName:'東大2次', subjectName:s.name, label:y + '年度', date:day(n), parts:s.parts, scores,
+          minutes:{kokugo:100, sugaku:150, eigo:120, butsuri:75, kagaku:75}[sid], memo: rnd() < .4 ? (memos[sid] || [''])[Math.floor(rnd() * (memos[sid] || ['']).length)] : '', updatedAt:new Date().toISOString()});
+        n--;
+      }
+    }
+    // 2回目（解き直し）
+    const s2 = exams[0].subjects.find(x => x.id === 'sugaku');
+    atts.push({id:'demo-re', examId:'todai', subjectId:'sugaku', examName:'東大2次', subjectName:'数学', label:'2012年度', date:day(2), parts:s2.parts, scores:[20,18,16,12,20,14], minutes:140, memo:'2回目。第4問の方針は立った', updatedAt:new Date().toISOString()});
+    // 共テ（予想問題集）
+    const k = exams[1].subjects;
+    ['Z会 第1回', 'Z会 第2回', '駿台 第1回', '2024年度本試'].forEach((lab, i) => {
+      for (const sid of ['kokugo', 'eigoR', 'eigoL', 'sugaku1']) {
+        const s = k.find(x => x.id === sid);
+        const scores = s.parts.map(p => Math.round(p.max * Math.min(1, .72 + i * .04 + (rnd() - .5) * .16)));
+        atts.push({id:`demo-k${i}${sid}`, examId:'kyote', subjectId:sid, examName:'共通テスト', subjectName:s.name, label:lab, date:day(30 - i * 6), parts:s.parts, scores, minutes:null, memo:'', updatedAt:new Date().toISOString()});
+      }
+    });
+    return {v:1, exams, examsAt:'1970-01-01T00:00:00.000Z', attempts:atts, kyoteRate:90, rateAt:'1970-01-01T00:00:00.000Z'};
+  }
+  if (DEMO) data = makeDemo();
   const saveUI = () => { try { localStorage.setItem(LS_UI, JSON.stringify(ui)); } catch(e) {} };
 
   const exam = id => data.exams.find(e => e.id === id);
@@ -295,6 +340,7 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   function setSync(t, kind){ const s = $('sync'); s.textContent = t; s.dataset.kind = kind || ''; }
   let syncing = false, again = false;
   async function sync(){
+    if (DEMO) { setSync('見本を表示中', 'warn'); return; }
     if (!ghReady()) { setSync(dirty ? 'この端末に保存中' : '', 'local'); $('setupBanner').hidden = false; return; }
     $('setupBanner').hidden = true;
     if (syncing) { again = true; return; }
@@ -600,7 +646,10 @@ ol.atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
   }
 
   fillSelectLike(); resetForm(); renderAll();
-  $('setupBanner').hidden = ghReady();
+  $('setupBanner').hidden = ghReady() || DEMO;
+  if (DEMO) { $('demoBanner').hidden = false; ui.exam = 'todai'; ui.subj = 'sugaku'; renderAll(); }
+  $('demoOn').addEventListener('click', () => { location.hash = 'demo'; location.reload(); });
+  $('demoOff').addEventListener('click', () => { history.replaceState(null, '', location.pathname); location.reload(); });
   sync();
   window.addEventListener('online', sync);
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
