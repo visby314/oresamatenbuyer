@@ -175,6 +175,16 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .35)}
 .th img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--rule-soft);display:block}
 .rm{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:14px;line-height:24px;padding:0;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
+/* 大問ごとのタイマー */
+.tmbar{display:flex;flex-direction:column;gap:6px}
+.tmbar:empty{display:none}
+.tmhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;background:var(--accent-soft);border-radius:8px;padding:6px 10px}
+.tmstate{font-size:.85rem;font-weight:700;color:var(--accent)}
+.tmclock{font-family:var(--f-display);font-weight:400;font-size:1.6rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.part .ptime{grid-column:1 / -1;font:inherit;font-size:.75rem;font-weight:700;color:var(--muted);background:var(--paper);border:1px dashed var(--rule);border-radius:6px;padding:3px 6px;cursor:pointer;font-variant-numeric:tabular-nums}
+.part.now{border-color:var(--accent);background:var(--accent-soft)}
+.part.now .ptime{color:#fff;background:var(--accent);border:1px solid var(--accent)}
+.plist .pv small{display:block;color:var(--muted);font-size:.7rem}
 </style>
 </head>
 <body>
@@ -208,6 +218,7 @@ button:disabled{opacity:.5;cursor:default}
       </div>
       <div class="field">
         <span class="flabel">大問ごとの点数 <span class="prov" id="provNote" hidden>満点は仮の値です。「設定」で解答集に合わせて直せます</span></span>
+        <div class="tmbar" id="tmBar"></div>
         <div class="parts" id="parts"></div>
         <div class="total"><span>合計</span><b id="sumNow">0</b><span id="sumMax">/ 0</span><span class="vs" id="sumVs"></span></div>
       </div>
@@ -526,9 +537,46 @@ button:disabled{opacity:.5;cursor:default}
     $('provNote').hidden = !(s && s.prov);
     if (!s) { $('parts').innerHTML = ''; updateSum(); return; }
     const old = keep || [];
-    $('parts').innerHTML = s.parts.map((p, i) => `<label class="part"><span class="pn">${esc(p.name)}</span><input type="number" inputmode="decimal" min="0" max="${p.max}" step="any" data-i="${i}" value="${old[i] ?? ''}" aria-label="${esc(p.name)}の点数"><span class="pm">/ ${p.max}</span></label>`).join('');
-    updateSum(); updateAttemptNote();
+    const on = tmHere();
+    $('parts').innerHTML = s.parts.map((p, i) => `<label class="part${on && tm.active === i ? ' now' : ''}"><span class="pn">${esc(p.name)}</span><input type="number" inputmode="decimal" min="0" max="${p.max}" step="any" data-i="${i}" value="${old[i] ?? ''}" aria-label="${esc(p.name)}の点数"><span class="pm">/ ${p.max}</span>${on ? `<button type="button" class="ptime" data-go="${i}" aria-label="${esc(p.name)}を解く">${tm.active === i ? '解いている ' : ''}<b data-pt="${i}">${clock(partMs(i))}</b></button>` : ''}</label>`).join('');
+    updateSum(); updateAttemptNote(); renderTm();
   }
+  // ---------- 大問ごとのタイマー（この端末だけ。止めても閉じても時刻から数え直す） ----------
+  // tm = {exam, subj, acc:[ms], active:大問の番号|null, since:ms|null, done:bool}
+  const LS_TM = 'scores-timer-v1';
+  let tm = null;
+  try { tm = JSON.parse(localStorage.getItem(LS_TM) || 'null'); } catch(e) {}
+  const saveTm = () => { try { tm ? localStorage.setItem(LS_TM, JSON.stringify(tm)) : localStorage.removeItem(LS_TM); } catch(e) {} };
+  const tmHere = () => !!(tm && tm.exam === ui.exam && tm.subj === ui.subj);
+  const partMs = i => tm ? (tm.acc[i] || 0) + (tm.active === i && tm.since ? Date.now() - tm.since : 0) : 0;
+  const totalMs = () => tm ? tm.acc.reduce((t, x, i) => t + partMs(i), 0) : 0;
+  const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${m}:${String(s % 60).padStart(2, '0')}`; };
+  function tmStop(){ if (tm && tm.active != null && tm.since) { tm.acc[tm.active] = (tm.acc[tm.active] || 0) + Date.now() - tm.since; } if (tm) { tm.active = null; tm.since = null; } }
+  function tmGo(i){ if (!tm) return; tmStop(); tm.active = i; tm.since = Date.now(); tm.done = false; tm.last = i; saveTm(); renderParts(currentScores()); }
+  function renderTm(){
+    const s = subj(ui.exam, ui.subj); const box = $('tmBar'); if (!box) return;
+    if (!s || editingId) { box.innerHTML = ''; return; }
+    if (tm && !tmHere()) { box.innerHTML = `<p class="note">${esc((exam(tm.exam) || {}).name || '')} ${esc((subj(tm.exam, tm.subj) || {}).name || '')}の時間を計っています。その科目に戻すと続きが見られます。</p><div class="tools"><button type="button" class="tool danger" data-tm="cancel">その計測を消す</button></div>`; return; }
+    if (!tm) { box.innerHTML = `<button type="button" class="tool" data-tm="start">大問ごとに時間を計る</button>`; return; }
+    const run = tm.active != null, cur = run ? s.parts[tm.active]?.name : '';
+    box.innerHTML = `<div class="tmhead"><span class="tmstate">${tm.done ? '計り終えました' : run ? `いま ${esc(cur || '')}` : '止めています'}</span><b class="tmclock" id="tmClock">${clock(totalMs())}</b></div>
+      <p class="note">${tm.done ? '点数を入れて「記録する」を押すと、大問ごとの時間も残ります。' : '解く大問の時間の部分を押すと、その大問に切り替わります。'}</p>
+      <div class="tools">${tm.done ? '' : run ? '<button type="button" class="tool" data-tm="pause">一時停止</button>' : '<button type="button" class="tool" data-tm="resume">再開</button>'}${tm.done ? '' : '<button type="button" class="tool" data-tm="finish">計り終える</button>'}<button type="button" class="tool danger" data-tm="cancel">計測を消す</button></div>`;
+  }
+  $('tmBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-tm]'); if (!b) return; const act = b.dataset.tm; const s = subj(ui.exam, ui.subj);
+    if (act === 'start' && s) { tm = {exam: ui.exam, subj: ui.subj, acc: s.parts.map(() => 0), active: null, since: null, done: false}; tmGo(0); return; }
+    if (act === 'pause') { tmStop(); saveTm(); renderParts(currentScores()); }
+    if (act === 'resume') tmGo(tm.last ?? 0);
+    if (act === 'finish') { tmStop(); tm.done = true; saveTm(); $('minutes').value = Math.max(1, Math.round(totalMs() / 60000)); renderParts(currentScores()); }
+    if (act === 'cancel') { if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'もう一度押すと消します'; return; } tm = null; saveTm(); renderParts(currentScores()); }
+  });
+  $('parts').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (!b) return; e.preventDefault(); tmGo(+b.dataset.go); });
+  setInterval(() => {
+    if (!tm || tm.active == null || !tmHere() || $('view-add').hidden) return;
+    const c = $('tmClock'); if (c) c.textContent = clock(totalMs());
+    const p = document.querySelector(`[data-pt="${tm.active}"]`); if (p) p.textContent = clock(partMs(tm.active));
+  }, 500);
   function currentScores(){ return [...$('parts').querySelectorAll('input')].map(x => x.value === '' ? null : +x.value); }
   function updateSum(){
     const s = subj(ui.exam, ui.subj); const sc = currentScores();
@@ -546,7 +594,7 @@ button:disabled{opacity:.5;cursor:default}
     const n = live().filter(a => a.examId === ui.exam && a.subjectId === ui.subj && a.label === label && a.id !== editingId).length;
     $('attemptNote').textContent = n ? `${n + 1}回目（前回までの記録も残ります）` : 'はじめて';
   }
-  $('examChips').addEventListener('click', e => { const b = e.target.closest('[data-exam]'); if (!b) return; if (ui.exam !== b.dataset.exam) $('yearPick').innerHTML = ''; ui.exam = b.dataset.exam; saveUI(); renderExamChips(); });
+  $('examChips').addEventListener('click', e => { const b = e.target.closest('[data-exam]'); if (!b) return; if (tm && !tm.done && tm.active != null && b.dataset.exam !== ui.exam) { $('addMsg').textContent = '時間を計っている間は、試験を変える前に一時停止してください。'; return; } if (ui.exam !== b.dataset.exam) $('yearPick').innerHTML = ''; ui.exam = b.dataset.exam; saveUI(); renderExamChips(); });
   $('subjChips').addEventListener('click', e => { const b = e.target.closest('[data-subj]'); if (!b) return; ui.subj = b.dataset.subj; saveUI(); renderExamChips(); });
   $('parts').addEventListener('input', updateSum);
   $('kindPick').addEventListener('change', () => { ui.kind = $('kindPick').value; saveUI(); fillPick(); updateAttemptNote(); });
@@ -562,11 +610,15 @@ button:disabled{opacity:.5;cursor:default}
     if (!scores.some(x => x != null)) { $('addMsg').textContent = '点数を1つ以上入れてください。'; return; }
     const over = scores.findIndex((x, i) => x != null && x > s.parts[i].max);
     if (over >= 0) { $('addMsg').textContent = `${s.parts[over].name}が満点（${s.parts[over].max}）を超えています。`; return; }
+    const old = editingId ? data.attempts.find(a => a.id === editingId) : null;
+    let ptimes = old && old.ptimes ? old.ptimes : null;
+    if (!editingId && tmHere()) { tmStop(); ptimes = s.parts.map((_, i) => Math.round((tm.acc[i] || 0) / 1000)); if ($('minutes').value === '') $('minutes').value = Math.max(1, Math.round(totalMs() / 60000)); tm = null; saveTm(); }
     const rec = {
       id: editingId || uid(), examId: ui.exam, subjectId: ui.subj, examName: exam(ui.exam).name, subjectName: s.name,
       label, date: $('date').value || new Date().toISOString().slice(0, 10), parts: s.parts.map(p => ({...p})), scores,
       minutes: $('minutes').value === '' ? null : +$('minutes').value, memo: $('memo').value.trim(), updatedAt: now()
     };
+    if (ptimes && ptimes.length === rec.parts.length) rec.ptimes = ptimes;
     const i = data.attempts.findIndex(a => a.id === rec.id);
     if (i >= 0) data.attempts[i] = rec; else data.attempts.push(rec);
     const wasEdit = !!editingId;
@@ -674,6 +726,7 @@ button:disabled{opacity:.5;cursor:default}
     const re = items.length > list.length ? '・解き直しは新しいほう' : '';
     return `<div class="ysum"><span class="ylab">合計</span><b>${fmt(sum)}</b><span class="ymax">/ ${max}</span><span class="ynote">${note}${re}</span>${extra}</div>`;
   }
+  const mins = sec => sec == null ? '' : sec < 60 ? '1分未満' : `${Math.round(sec / 60)}分`;
   function attRow(a, sameLabel){
     const s = subj(a.examId, a.subjectId); const tot = sumOf(a), max = maxOf(a.parts);
     const nth = sameLabel.filter(x => x.subjectId === a.subjectId && x.date <= a.date).length;
@@ -686,7 +739,7 @@ button:disabled{opacity:.5;cursor:default}
       <div class="ameta">${esc(a.date.replace(/-/g, '/'))}${a.minutes != null ? `・${a.minutes}分` : ''}${s && s.target ? `・目標 ${s.target}` : ''}</div>
       ${a.memo ? `<div class="amemo">${esc(a.memo)}</div>` : ''}
       <details class="adetail"><summary>大問ごとの点と操作</summary>
-        <table class="ptable"><tbody>${a.parts.map((p, i) => `<tr><th>${esc(p.name)}</th><td>${a.scores[i] ?? '－'}</td><td>/ ${p.max}</td><td>${a.parts.length > 1 ? `<button type="button" class="tool sm" data-send="${a.id}" data-part="${i}">受け箱へ</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        <table class="ptable"><tbody>${a.parts.map((p, i) => `<tr><th>${esc(p.name)}</th><td>${a.scores[i] ?? '－'}</td><td>/ ${p.max}</td>${a.ptimes ? `<td class="na">${mins(a.ptimes[i])}</td>` : ''}<td>${a.parts.length > 1 ? `<button type="button" class="tool sm" data-send="${a.id}" data-part="${i}">受け箱へ</button>` : ''}</td></tr>`).join('')}</tbody></table>
         <div class="tools"><button type="button" class="tool" data-send="${a.id}" data-part="-1">間違えた問題を受け箱へ</button><button type="button" class="tool" data-edit="${a.id}">直す</button><button type="button" class="tool danger" data-del="${a.id}">消す</button></div>
       </details></li>`;
   }
@@ -730,14 +783,14 @@ button:disabled{opacity:.5;cursor:default}
       <p class="note">縦軸は満点に対する％。横は解いた順（下の数字は年度）。</p>`;
   }
   function partsTable(rows, s){
-    const names = s.parts.map(p => p.name); const acc = names.map(() => ({sum:0, n:0}));
-    rows.forEach(a => a.parts.forEach((p, i) => { const k = names.indexOf(p.name); const v = a.scores[i]; if (k >= 0 && v != null) { acc[k].sum += pct(v, p.max); acc[k].n++; } }));
+    const names = s.parts.map(p => p.name); const acc = names.map(() => ({sum:0, n:0, t:0, tn:0}));
+    rows.forEach(a => a.parts.forEach((p, i) => { const k = names.indexOf(p.name); const v = a.scores[i]; if (k >= 0 && v != null) { acc[k].sum += pct(v, p.max); acc[k].n++; } if (k >= 0 && a.ptimes && a.ptimes[i] != null) { acc[k].t += a.ptimes[i]; acc[k].tn++; } }));
     const avgs = acc.map(x => x.n ? x.sum / x.n : null); const valid = avgs.filter(x => x != null);
     if (!valid.length || names.length < 2) return '';
     const low = Math.min(...valid);
     return `<div class="chead"><span>大問ごとの平均得点率</span></div><ul class="plist">${names.map((n, i) => avgs[i] == null ? '' :
-      `<li${avgs[i] === low ? ' class="low"' : ''}><span class="pn">${esc(n)}</span><span class="pt"><i style="--r:${fmt(avgs[i])}%"></i></span><span class="pv">${fmt(avgs[i])}%</span></li>`).join('')}</ul>
-      <p class="note">赤い大問がいちばん取れていない大問です（${acc.reduce((t, x) => Math.max(t, x.n), 0)}回分の平均）。</p>`;
+      `<li${avgs[i] === low ? ' class="low"' : ''}><span class="pn">${esc(n)}</span><span class="pt"><i style="--r:${fmt(avgs[i])}%"></i></span><span class="pv">${fmt(avgs[i])}%${acc[i].tn ? `<small>${mins(acc[i].t / acc[i].tn)}</small>` : ''}</span></li>`).join('')}</ul>
+      <p class="note">赤い大問がいちばん取れていない大問です（${acc.reduce((t, x) => Math.max(t, x.n), 0)}回分の平均）。${acc.some(x => x.tn) ? '小さい数字は、時間を計った回の平均時間です。' : ''}</p>`;
   }
   function todaiTable(){
     const ex = exam('todai'); const rows = live().filter(a => a.examId === 'todai');
